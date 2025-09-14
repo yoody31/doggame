@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>개판오분전! 주인이 돌아오기 전까지 집을 치워라!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
+
+        body {
+            font-family: 'Jua', sans-serif;
+            background-color: #f7e7d4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+            cursor: none; /* Hide default cursor */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 800px;
+            height: 600px;
+            background-color: #fff;
+            position: relative;
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent; /* Remove blue highlight on click */
+            outline: none; /* Remove focus outline */
+        }
+
+        /* Background image style */
+        .background-image {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            object-fit: cover;
+            object-position: left;
+            pointer-events: none; /* Prevent background drag */
+        }
+
+        /* Cursor images */
+        .cursor-image {
+            position: absolute;
+            width: 180px; /* Increased size */
+            height: auto; /* Changed height to auto to maintain aspect ratio */
+            pointer-events: none; /* Prevent drag */
+            transform: translate(-50%, -50%); /* Center the image on the mouse pointer */
+            z-index: 1000;
+        }
+
+        /* Intro episode overlay */
+        .intro-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 200;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            opacity: 1;
+            transition: opacity 1s ease-in-out;
+            cursor: auto; /* Show default cursor during intro */
+        }
+        
+        .intro-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .intro-wolf {
+            position: absolute;
+            width: 200px; /* Increased size */
+            transition: all 0.5s ease-in-out;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .timer-bar {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 400px;
+            height: 20px;
+            background-color: #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        .timer-fill {
+            height: 100%;
+            background-color: #ff6347;
+            width: 100%;
+            transition: width 1s linear;
+        }
+
+        .trash-can, .bed {
+            position: absolute;
+            z-index: 5;
+            cursor: pointer;
+        }
+
+        .trash-can {
+            bottom: 20px;
+            right: 20px;
+            width: 100px;
+            height: 120px;
+            background: #666;
+            border-radius: 10px 10px 0 0;
+            border-top: 10px solid #555;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-size: 24px;
+        }
+        
+        .draggable {
+            position: absolute;
+            cursor: pointer;
+            z-index: 20;
+            transition: transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+            touch-action: none;
+            display: none; /* Initially hide items */
+        }
+        
+        .draggable.show {
+            display: block;
+        }
+        
+        .draggable:hover {
+            transform: scale(1.1);
+        }
+
+        .item-image {
+            width: 60px;
+            height: 60px;
+        }
+        
+        .message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            font-size: 24px;
+            color: #333;
+        }
+
+        .message-box.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .message-box button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #ff6347;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        /* Custom line height to fix text alignment */
+        .intro-overlay p,
+        .intro-overlay h1 {
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <!-- Intro Episode Overlay -->
+    <div class="intro-overlay" id="intro-overlay">
+        <h1 id="intro-title" class="text-xl mb-4 font-bold">주인이 돌아오기 30초 전!</h1>
+        <p id="intro-text-1" class="text-xl mb-2">혼자 있는 동안 행복하게 집을 어질러놓은 개가 늑대가 되었다?!</p>
+        <p id="intro-text-2" class="text-xl mb-8">집을 깨끗하게 다 치워야 개로 돌아갈 수 있다!</p>
+        <button id="start-button" class="mt-4 px-8 py-4 bg-orange-400 text-white rounded-lg shadow-lg hover:bg-orange-500 transition-colors">집 치우기 시작</button>
+        <img src="https://i.imgur.com/z12utv9.png" alt="늑대" class="intro-wolf" id="intro-wolf">
+    </div>
+
+    <!-- 배경 이미지 -->
+    <img src="https://i.imgur.com/7olvDbK.jpeg" alt="귀여운 집 배경" class="background-image" />
+    
+    <!-- 쓰레기통 UI -->
+    <div class="trash-can" data-target="trash">
+        <p>쓰레기통</p>
+    </div>
+    
+    <!-- 게임 아이템 10개 -->
+    <div class="draggable" data-item="ball" data-target="trash">
+        <svg class="item-image" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="40" fill="#ff6347" />
+            <path d="M20,50 C40,20 60,20 80,50" fill="none" stroke="#fff" stroke-width="5" />
+            <path d="M20,50 C40,80 60,80 80,50" fill="none" stroke="#fff" stroke-width="5" />
+        </svg>
+    </div>
+    
+    <div class="draggable" data-item="paper" data-target="trash">
+        <svg class="item-image" viewBox="0 0 100 100">
+            <rect x="10" y="10" width="80" height="80" fill="#fff" rx="10" ry="10" />
+            <path d="M10,10 Q50,20 90,10 Q80,50 90,90 Q50,80 10,90 Q20,50 10,10 Z" fill="none" stroke="#ccc" stroke-width="5"/>
+        </svg>
+    </div>
+
+    <div class="draggable" data-item="toy" data-target="trash">
+        <svg class="item-image" viewBox="0 0 100 100">
+            <rect x="20" y="20" width="60" height="60" fill="#f4a460" rx="10" ry="10" />
+            <circle cx="50" cy="50" r="10" fill="#fff" />
+            <line x1="20" y1="20" x2="80" y2="80" stroke="#fff" stroke-width="5" />
+            <line x1="80" y1="20" x2="20" y2="80" stroke="#fff" stroke-width="5" />
+        </svg>
+    </div>
+    
+    <div class="draggable" data-item="bone" data-target="trash">
+        <svg class="item-image" viewBox="0 0 100 100">
+            <path d="M20,50 A20,20 0 0,1 40,30 Q50,40 60,30 A20,20 0 0,1 80,50 Q60,60 80,70 A20,20 0 0,1 60,90 Q50,80 40,90 A20,20 0 0,1 20,70 Q40,60 20,50 Z" fill="#fff" stroke="#8b572a" stroke-width="2" />
+        </svg>
+    </div>
+
+    <div class="draggable" data-item="crumbled-paper" data-target="trash">
+        <svg class="item-image" viewBox="0 0 100 100">
+            <path d="M30,20 C50,10 70,20 80,40 Q70,60 50,70 Q30,60 20,40 Z" fill="#fff" stroke="#ccc" stroke-width="3"/>
+            <path d="M40,30 C60,25 70,40 60,50 C45,55 30,50 40,30 Z" fill="#e8e8e8" />
+            <path d="M50,55 C60,60 65,70 50,70 C40,70 35,65 50,55 Z" fill="#d0d0d0" />
+        </svg>
+    </div>
+
+    <div class="draggable" data-item="sock" data-target="trash">
+        <svg class="item-image" viewBox="0 0 100 100">
+            <path d="M30,80 C20,60 30,30 50,20 C70,10 80,30 70,50 C60,70 40,90 30,80 Z" fill="#add8e6" stroke="#87ceeb" stroke-width="2"/>
+            <path d="M35,85 C25,65 35,35 55,25 C75,15 85,35 75,55 C65,75 45,95 35,85 Z" fill="none" stroke="#fff" stroke-width="2" />
+        </svg>
+    </div>
+
+    <div class="draggable" data-item="sock2" data-target="trash">
+        <svg class="item-image" viewBox="0 0 100 100">
+            <path d="M30,80 C20,60 30,30 50,20 C70,10 80,30 70,50 C60,70 40,90 30,80 Z" fill="#f4a460" stroke="#d2844e" stroke-width="2"/>
+            <path d="M35,85 C25,65 35,35 55,25 C75,15 85,35 75,55 C65,75 45,95 35,85 Z" fill="none" stroke="#fff" stroke-width="2" />
+        </svg>
+    </div>
+    
+    <div class="draggable" data-item="food-bowl" data-target="trash">
+        <svg class="item-image" viewBox="0 0 100 100">
+            <path d="M20,80 Q50,70 80,80 L80,90 Q50,100 20,90 Z" fill="#999" />
+            <path d="M20,80 L80,80 L70,30 L30,30 Z" fill="#ccc" />
+            <circle cx="50" cy="60" r="10" fill="#e8e8e8" />
+        </svg>
+    </div>
+
+    <div class="draggable" data-item="toy2" data-target="trash">
+        <svg class="item-image" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="40" fill="#50c878" />
+            <rect x="20" y="45" width="60" height="10" fill="#fff" />
+            <rect x="45" y="20" width="10" height="60" fill="#fff" />
+        </svg>
+    </div>
+    
+    <div class="draggable" data-item="newspaper" data-target="trash">
+        <svg class="item-image" viewBox="0 0 100 100">
+            <rect x="10" y="10" width="80" height="80" fill="#fff" rx="5" ry="5"/>
+            <rect x="15" y="15" width="70" height="10" fill="#ccc"/>
+            <rect x="15" y="30" width="30" height="30" fill="#ccc"/>
+            <rect x="50" y="30" width="35" height="5" fill="#ccc"/>
+            <rect x="50" y="40" width="35" height="5" fill="#ccc"/>
+            <rect x="50" y="50" width="35" height="5" fill="#ccc"/>
+            <rect x="15" y="65" width="70" height="5" fill="#ccc"/>
+        </svg>
+    </div>
+
+    <!-- 늑대 커서 이미지 -->
+    <img src="https://i.imgur.com/z12utv9.png" alt="늑대 커서" class="cursor-image" id="wolf-cursor">
+
+    <!-- Timer bar -->
+    <div class="timer-bar">
+        <div class="timer-fill" id="timer-fill"></div>
+    </div>
+    
+    <!-- Message box -->
+    <div class="message-box" id="message-box">
+        <p id="message-text">미션 성공! 개로 돌아왔어 고마워!</p>
+        <button id="restart-button">다시 하기</button>
+    </div>
+
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const gameContainer = document.querySelector('.game-container');
+        const draggables = document.querySelectorAll('.draggable');
+        const trashCan = document.querySelector('.trash-can');
+        const timerFill = document.getElementById('timer-fill');
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+        const restartButton = document.getElementById('restart-button');
+        const wolfCursor = document.getElementById('wolf-cursor');
+        const introOverlay = document.getElementById('intro-overlay');
+        const introWolf = document.getElementById('intro-wolf');
+        const startButton = document.getElementById('start-button');
+        const introTitle = document.getElementById('intro-title');
+        const introText1 = document.getElementById('intro-text-1');
+        const introText2 = document.getElementById('intro-text-2');
+
+        let isDragging = false;
+        let activeItem = null;
+        let dragOffset = { x: 0, y: 0 }; 
+        let cleanCount = 0;
+        const totalItems = draggables.length;
+        const gameTime = 30; // 30 seconds
+        let timeRemaining = gameTime;
+        let timerInterval;
+        let isGameOver = false;
+        let introAnimationInterval;
+
+        // 게임 시작 전 에피소드 애니메이션
+        function startIntroAnimation() {
+            let itemIndex = 0;
+            
+            // 늑대 이미지와 아이템을 무작위로 움직이는 애니메이션
+            introAnimationInterval = setInterval(() => {
+                const gameContainerWidth = gameContainer.offsetWidth;
+                const gameContainerHeight = gameContainer.offsetHeight;
+                
+                // 늑대 이동
+                const wolfWidth = introWolf.offsetWidth;
+                const wolfHeight = introWolf.offsetHeight;
+                const newX = Math.random() * (gameContainerWidth - wolfWidth);
+                const newY = Math.random() * (gameContainerHeight - wolfHeight);
+                introWolf.style.left = `${newX}px`;
+                introWolf.style.top = `${newY}px`;
+                
+                // 아이템 순차적으로 뿌리기
+                if (itemIndex < draggables.length) {
+                    const item = draggables[itemIndex];
+                    item.style.left = `${Math.random() * (gameContainerWidth - item.offsetWidth - 200) + 100}px`;
+                    item.style.top = `${Math.random() * (gameContainerHeight - item.offsetHeight - 250) + 100}px`;
+                    item.style.display = 'block';
+                    item.style.opacity = '1';
+                    item.classList.add('show');
+                    itemIndex++;
+                }
+
+            }, 500); // 0.5초마다 늑대와 아이템 위치 변경
+            
+            // 30초 후에 애니메이션 정지
+            setTimeout(() => {
+                clearInterval(introAnimationInterval);
+                introWolf.style.transition = 'none'; // 애니메이션 정지
+            }, 30000); // 30초로 변경
+        }
+
+        // 게임 시작 전 화면 설정
+        function playIntro() {
+            resetGame();
+            
+            // 인트로 화면 요소 보이기
+            introOverlay.classList.remove('hidden');
+            introTitle.style.display = 'block';
+            introText1.style.display = 'block';
+            introText2.style.display = 'block';
+            startButton.style.display = 'block';
+            introWolf.style.display = 'block';
+            
+            // 게임 내 늑대 커서 숨기기
+            wolfCursor.style.display = 'none';
+            
+            // 인트로 애니메이션 시작
+            startIntroAnimation();
+        }
+
+        // 실제 게임 시작
+        function startGame() {
+            clearInterval(introAnimationInterval); // 애니메이션 정지
+            
+            // 인트로 화면 숨기기
+            introOverlay.classList.add('hidden');
+            
+            // 늑대 커서 보이기
+            wolfCursor.style.display = 'block';
+            
+            // 게임 리셋 및 타이머 시작
+            resetGame();
+            timerInterval = setInterval(() => {
+                if (isGameOver) return;
+                timeRemaining--;
+                timerFill.style.width = `${(timeRemaining / gameTime) * 100}%`;
+                if (timeRemaining <= 0) {
+                    endGame('시간 초과! 주인이 돌아왔어요!');
+                }
+            }, 1000);
+        }
+
+        // 게임 종료
+        function endGame(message) {
+            isGameOver = true;
+            clearInterval(timerInterval);
+            messageText.textContent = message;
+            messageBox.classList.add('show');
+            draggables.forEach(item => {
+                item.style.pointerEvents = 'none';
+            });
+            
+            // 미션 성공 시 늑대 커서를 강아지 이미지로 변경
+            if (message === '미션 성공! 개로 돌아왔어 고마워!') {
+                wolfCursor.src = 'https://i.imgur.com/64wH88G.png';
+                wolfCursor.style.width = '100px'; 
+                wolfCursor.style.height = '100px';
+                document.body.style.cursor = 'auto'; // Show default cursor
+            } else {
+                 document.body.style.cursor = 'auto'; // Show default cursor for game over
+            }
+        }
+        
+        // 게임 리셋
+        function resetGame() {
+            isGameOver = false;
+            cleanCount = 0;
+            timeRemaining = gameTime;
+            timerFill.style.width = '100%';
+            messageBox.classList.remove('show');
+            
+            // 커서를 다시 늑대 이미지로 변경
+            wolfCursor.src = 'https://i.imgur.com/z12utv9.png';
+            wolfCursor.style.width = '180px';
+            wolfCursor.style.height = 'auto';
+            document.body.style.cursor = 'none'; // Hide default cursor for game play
+            
+            draggables.forEach((item, index) => {
+                item.style.display = 'block';
+                item.style.opacity = '1';
+                item.style.pointerEvents = 'auto';
+                // 아이템을 무작위로 배치
+                item.style.left = `${Math.random() * (gameContainer.offsetWidth - item.offsetWidth - 200) + 100}px`;
+                item.style.top = `${Math.random() * (gameContainer.offsetHeight - item.offsetHeight - 250) + 100}px`;
+                item.style.transform = 'none';
+                item.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+            });
+        }
+
+        // Update wolf cursor position
+        gameContainer.addEventListener('mousemove', (e) => {
+            if (isGameOver) return;
+            const rect = gameContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            wolfCursor.style.left = `${x}px`;
+            wolfCursor.style.top = `${y}px`;
+        });
+        
+        // Drag start
+        draggables.forEach(item => {
+            item.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                activeItem = item;
+                item.style.transition = 'none';
+                item.style.zIndex = '30';
+                
+                const touch = e.type === 'touchstart' ? e.touches[0] : e;
+                const rect = item.getBoundingClientRect();
+                
+                // Set the drag offset to the mouse pointer position relative to the item
+                dragOffset.x = touch.clientX - rect.left;
+                dragOffset.y = touch.clientY - rect.top;
+            });
+            
+            item.addEventListener('touchstart', (e) => {
+                isDragging = true;
+                activeItem = item;
+                item.style.transition = 'none';
+                item.style.zIndex = '30';
+                
+                const touch = e.touches[0];
+                const rect = item.getBoundingClientRect();
+                dragOffset.x = touch.clientX - rect.left;
+                dragOffset.y = touch.clientY - rect.top;
+            });
+        });
+        
+        // Dragging
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging || !activeItem) return;
+            const containerRect = gameContainer.getBoundingClientRect();
+            const x = e.clientX - containerRect.left - dragOffset.x;
+            const y = e.clientY - containerRect.top - dragOffset.y;
+            
+            activeItem.style.left = `${x}px`;
+            activeItem.style.top = `${y}px`;
+        });
+        
+        document.addEventListener('touchmove', (e) => {
+            if (!isDragging || !activeItem) return;
+            const containerRect = gameContainer.getBoundingClientRect();
+            const touch = e.touches[0];
+            const x = touch.clientX - containerRect.left - dragOffset.x;
+            const y = touch.clientY - containerRect.top - dragOffset.y;
+            
+            activeItem.style.left = `${x}px`;
+            activeItem.style.top = `${y}px`;
+        });
+
+        // Drag end
+        document.addEventListener('mouseup', () => {
+            if (!isDragging || !activeItem) return;
+            isDragging = false;
+            activeItem.style.transition = 'transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease';
+            activeItem.style.zIndex = '20';
+
+            const itemRect = activeItem.getBoundingClientRect();
+            const trashRect = trashCan.getBoundingClientRect();
+            
+            const targetElement = activeItem.getAttribute('data-target');
+
+            if (targetElement === 'trash' && isColliding(itemRect, trashRect)) {
+                cleanItem(activeItem);
+            }
+            activeItem = null;
+        });
+
+        document.addEventListener('touchend', () => {
+            if (!isDragging || !activeItem) return;
+            isDragging = false;
+            activeItem.style.transition = 'transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease';
+            activeItem.style.zIndex = '20';
+
+            const itemRect = activeItem.getBoundingClientRect();
+            const trashRect = trashCan.getBoundingClientRect();
+            
+            const targetElement = activeItem.getAttribute('data-target');
+
+            if (targetElement === 'trash' && isColliding(itemRect, trashRect)) {
+                cleanItem(activeItem);
+            }
+            activeItem = null;
+        });
+        
+        function isColliding(rect1, rect2) {
+            return !(rect1.right < rect2.left || 
+                     rect1.left > rect2.right || 
+                     rect1.bottom < rect2.top || 
+                     rect1.top > rect2.bottom);
+        }
+
+        function cleanItem(item) {
+            item.style.opacity = '0';
+            item.style.pointerEvents = 'none';
+            cleanCount++;
+            if (cleanCount === totalItems) {
+                endGame('미션 성공! 개로 돌아왔어 고마워!');
+            }
+        }
+        
+        restartButton.addEventListener('click', () => {
+            playIntro();
+        });
+
+        startButton.addEventListener('click', () => {
+            startGame();
+        });
+        
+        playIntro();
+    });
+</script>
+
+</body>
+</html>
